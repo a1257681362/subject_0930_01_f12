@@ -98,6 +98,13 @@ public class TransportBatch extends BaseEntity {
     /** 承诺时间解析时参与的节假日/临时闭馆规则ID，逗号分隔（旧结论可追，规则事后冻结） */
     private String windowHolidayIdsSnap;
 
+    // —— V12 电子签收：签收冲突冻结（同一批次出现两份不同签收，待主管裁决）——
+    /** 冻结前状态（SHIPPED/EXCEPTION/SIGNED），裁决后据此恢复/闭环；空=未冻结。
+     *  IGNORED 策略：裁决解除冻结时必须把本列显式写回 NULL（默认策略忽略 null 值） */
+    @com.baomidou.mybatisplus.annotation.TableField(
+            updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.IGNORED)
+    private String signFrozenFrom;
+
     public String getBatchNo() { return batchNo; }
     public void setBatchNo(String batchNo) { this.batchNo = batchNo; }
     public Long getOrderId() { return orderId; }
@@ -208,4 +215,8 @@ public class TransportBatch extends BaseEntity {
     public void setWindowRuleVersionNo(Integer windowRuleVersionNo) { this.windowRuleVersionNo = windowRuleVersionNo; }
     public String getWindowHolidayIdsSnap() { return windowHolidayIdsSnap; }
     public void setWindowHolidayIdsSnap(String windowHolidayIdsSnap) { this.windowHolidayIdsSnap = windowHolidayIdsSnap; }
+
+    // —— V12：签收冲突冻结前状态 ——
+    public String getSignFrozenFrom() { return signFrozenFrom; }
+    public void setSignFrozenFrom(String signFrozenFrom) { this.signFrozenFrom = signFrozenFrom; }
 }

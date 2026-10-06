@@ -519,4 +519,56 @@ public final class CcConstants {
     public static final String PERM_RETURN_VIEW = "coldchain:return:view";
     /** 退货台账与证据链导出 */
     public static final String PERM_RETURN_EXPORT = "coldchain:return:export";
+
+    // —— V12 电子签收与离线回执 ——
+    /** 批次状态：签收冲突冻结（同一批次出现两份不同签收，待主管裁决；签收/结算/撤回停止） */
+    public static final String BATCH_FROZEN = "FROZEN";
+
+    // 回执来源：ONLINE 在线签收 / OFFLINE 离线回执补传
+    public static final String ESIGN_ONLINE = "ONLINE";
+    public static final String ESIGN_OFFLINE = "OFFLINE";
+
+    // 回执状态：DRAFT 草稿（要素未齐）/ COMPLETE 要素齐全 / EFFECTIVE 生效 /
+    // REJECTED 主管裁决作废（事实保留）/ DUPLICATE 内容一致的重复件
+    public static final String RECEIPT_DRAFT = "DRAFT";
+    public static final String RECEIPT_COMPLETE = "COMPLETE";
+    public static final String RECEIPT_EFFECTIVE = "EFFECTIVE";
+    public static final String RECEIPT_REJECTED = "REJECTED";
+    public static final String RECEIPT_DUPLICATE = "DUPLICATE";
+
+    // 补偿记录侧别：ESIGN 电子签收侧 / OFFLINE 离线回执侧（成对开立，pair_id 互指）
+    public static final String COMP_ESIGN = "ESIGN";
+    public static final String COMP_OFFLINE = "OFFLINE";
+    // 补偿状态：OPEN 待补偿 / RESOLVED 已补偿闭环
+    public static final String COMP_OPEN = "OPEN";
+    public static final String COMP_RESOLVED = "RESOLVED";
+
+    // 同步/上传结果：SUCCESS 全部成功 / PARTIAL 部分成功 / FAILED 全部失败
+    public static final String SYNC_SUCCESS = "SUCCESS";
+    public static final String SYNC_PARTIAL = "PARTIAL";
+    public static final String SYNC_FAILED = "FAILED";
+
+    // V12 操作日志实体类型
+    public static final String ENT_ESIGN_RECEIPT = "ESIGN_RECEIPT";
+    public static final String ENT_ESIGN_COMPENSATION = "ESIGN_COMPENSATION";
+    public static final String ENT_ESIGN_CORRECTION = "ESIGN_CORRECTION";
+
+    // V12 操作动作
+    public static final String ACT_ESIGN_UPLOAD = "ESIGN_UPLOAD";
+    public static final String ACT_ESIGN_SYNC = "ESIGN_SYNC";
+    public static final String ACT_BATCH_FREEZE = "BATCH_FREEZE";
+    public static final String ACT_ESIGN_ADJUDICATE = "ESIGN_ADJUDICATE";
+    public static final String ACT_ESIGN_CORRECT = "ESIGN_CORRECT";
+    public static final String ACT_COMP_CREATE = "COMPENSATION_CREATE";
+    public static final String ACT_COMP_RESOLVE = "COMPENSATION_RESOLVE";
+
+    // —— V12 Shiro 权限点 ——
+    /** 电子签收上传/离线回执同步（司机/收货方） */
+    public static final String PERM_ESIGN_UPLOAD = "coldchain:esign:upload";
+    /** 电子签收回执/补偿台账查看 */
+    public static final String PERM_ESIGN_VIEW = "coldchain:esign:view";
+    /** 人工修正（只追加修正记录，不覆盖原始回执） */
+    public static final String PERM_ESIGN_CORRECT = "coldchain:esign:correct";
+    /** 签收冲突主管裁决 */
+    public static final String PERM_ESIGN_ADJUDICATE = "coldchain:esign:adjudicate";
 }

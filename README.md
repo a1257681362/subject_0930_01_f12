@@ -1036,3 +1036,56 @@ curl -u qa:qa123 -OJ http://localhost:8080/api/cold-chain/returns/1/evidence
 运输对象置为无效（撤回）后页面 HTML、列表 CSV 导出、后台 JSON 三者同口径（退货快照不变、
 原批次状态一致展示已作废、退货流程照常推进、台账含退货只读关联块）；以及 401/403/200
 权限校验。全套 57 个用例通过。
+
+## 冷链运输 V12：电子签收与离线回执
+
+司机离线时可在端上保存签收草稿（生成回执编号），恢复网络后签名、照片、定位分次上传，
+服务端按回执编号合并进同一条回执；同一批次出现两份不同签收即冻结批次、由主管裁决；
+签收时间以设备时间与服务器时间并列展示；任何人工修正只追加修正记录、绝不覆盖原始回执；
+同步部分成功时电子签收侧与离线回执侧的补偿记录成对开立、彼此对应。
+
+### 业务规则
+
+- **离线草稿与合并**：回执编号（`receipt_no`）是合并锚点。离线端生成回执编号保存草稿，
+  恢复网络后 `POST /esign/receipts` 可分多次补传签名/照片/定位，服务端按回执编号合并；
+  同一回执编号核心内容（签收人/设备时间/数量/签名等）不一致直接拒绝（同号不同单）。
+  照片逐张追加，同回执内 URL 唯一，重传幂等。
+- **要素齐全激活签收**：签收人+设备时间+签名+照片+定位+核对字段齐全后 DRAFT -> COMPLETE，
+  并按既有签收卡口（快照核对/未关闭异常/分仓交接核验/权限收紧/改期待审批）自动激活批次
+  签收（EFFECTIVE）；卡口不满足时回执停留 COMPLETE 待激活，事实不丢。
+- **两份不同签收冻结**：同一批次存在两份 COMPLETE/EFFECTIVE 且内容摘要不同的签收时，
+  批次置 FROZEN（记录冻结前状态），签收/结算/撤回全部停止；主管（admin）经
+  `POST /esign/receipts/adjudicate` 选定生效回执，其余置 REJECTED，原始行全部保留。
+  内容一致的重复回执置 DUPLICATE，不触发冻结。
+- **双时间并列**：回执同时落 `device_time`（设备时间，离线签收当刻）与 `server_time`
+  （服务器接收时间），回执详情与批次台账并列展示，互不改写。
+- **人工修正只追加**：`POST /esign/receipts/corrections` 每修正一次追加一行
+  （字段/旧值/新值/原因/修正人），原始回执行永不修改；详情视图按“原值+最新修正”
+  并列给出有效值。设备时间/签名/照片等原始要素一律不允许修正。
+- **部分成功补偿成对对应**：`POST /esign/sync` 批量同步出现部分成功（部分回执失败/
+  部分照片缺失）时，同时为电子签收侧（ESIGN）与离线回执侧（OFFLINE）各开一条补偿
+  记录，两行 `pair_id` 互指；该回执后续完整上传成功后，两侧补偿一并闭环。
+- **幂等**：上传/同步按 `requestId` 幂等，同键同载荷重放返回首次结果，同键不同载荷拒绝。
+
+### 接口（base: /api/cold-chain）
+
+| 动作 | 方法与路径 | 权限点 |
+| --- | --- | --- |
+| 单回执上传（草稿/补传合并） | `POST /esign/receipts` | `coldchain:esign:upload` |
+| 离线回执批量同步 | `POST /esign/sync` | `coldchain:esign:upload` |
+| 主管裁决签收冲突 | `POST /esign/receipts/adjudicate` | `coldchain:esign:adjudicate` |
+| 人工修正（只追加） | `POST /esign/receipts/corrections` | `coldchain:esign:correct` |
+| 回执详情（双时间/有效值视图） | `GET /esign/receipts/{id}` | `coldchain:esign:view` |
+| 批次电子签收台账 | `GET /esign/receipts/batch/{batchId}` | `coldchain:esign:view` |
+| 补偿记录台账 | `GET /esign/compensations?batchId=` | `coldchain:esign:view` |
+
+### V12 验收
+
+`EsignOfflineIntegrationTest`（5 个用例，内存 H2 + 真实 Shiro HTTP Basic，Mapper 直查
+物理表）覆盖：离线草稿保存后分次补传签名/照片/定位并按回执编号合并、要素齐全自动激活
+签收、设备时间/服务器时间/批次签收时间三栏并列、requestId 幂等重放与同键不同载荷拒绝、
+同一回执编号同号不同单拒绝；两份不同签收冻结批次（签收/结算/撤回停止、非主管 403、
+主管裁决维持原签收、作废回执原始要素保留且不能再上传）；内容一致重复件置 DUPLICATE
+不冻结；人工修正只追加（原行不变、有效值视图随最新修正、设备时间禁止修正）；批量同步
+部分成功时失败/部分回执各开立电子签收侧↔离线回执侧互指补偿、同步幂等不重复开立、
+补传成功后两侧补偿一并闭环。全套 62 个用例通过。

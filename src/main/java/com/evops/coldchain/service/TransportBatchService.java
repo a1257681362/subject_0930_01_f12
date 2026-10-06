@@ -560,6 +560,8 @@ public class TransportBatchService {
     @Transactional
     public TransportBatch settle(BatchSettleRequest req) {
         TransportBatch batch = requireBatch(req.getBatchId());
+        // V12：签收冲突冻结批次待主管裁决，裁决前不得结算
+        requireNotSignFrozen(batch);
         if (!CcConstants.BATCH_SIGNED.equals(batch.getStatus())) {
             throw new BusinessException("仅已签收闭环批次允许结算，当前状态: " + batch.getStatus()
                     + "（收货拒签/异常挂起批次须先关闭异常并完成签收）");
@@ -592,6 +594,8 @@ public class TransportBatchService {
         if (CcConstants.BATCH_SIGNED.equals(batch.getStatus())) {
             throw new BusinessException("批次已签收，不能重复签收");
         }
+        // V12：同一批次出现两份不同签收被冻结时，签收停止推进，待主管裁决选定生效回执
+        requireNotSignFrozen(batch);
 
         // 冷链药品运输权限被收紧时，交接/继续派送停止推进（已确认的封签核验事实保留）
         permissionService.requirePermitted(CcConstants.PERM_COLD_CHAIN_HANDOVER);
@@ -656,6 +660,8 @@ public class TransportBatchService {
     @Transactional
     public TransportBatch revoke(RevokeRequest req) {
         TransportBatch batch = requireBatch(req.getBatchId());
+        // V12：签收冲突冻结批次待主管裁决，裁决前不得撤回
+        requireNotSignFrozen(batch);
         if (CcConstants.BATCH_SIGNED.equals(batch.getStatus())) {
             throw new BusinessException("批次已签收闭环，不能撤回");
         }
@@ -689,6 +695,16 @@ public class TransportBatchService {
             throw new BusinessException("运输批次不存在: " + batchId);
         }
         return batch;
+    }
+
+    /** V12 签收冲突冻结卡口：同一批次出现两份不同签收即冻结，签收/结算/撤回停止，待主管裁决 */
+    private void requireNotSignFrozen(TransportBatch batch) {
+        if (CcConstants.BATCH_FROZEN.equals(batch.getStatus())) {
+            throw new BusinessException(String.format(
+                    "批次 %s 出现两份不同签收，已冻结（冻结前状态=%s）：签收/结算/撤回停止推进，"
+                            + "待主管裁决选定生效回执；全部回执原始记录保留可查",
+                    batch.getBatchNo(), batch.getSignFrozenFrom()));
+        }
     }
 
     private TransportBatch requireActiveBatch(Long batchId) {

@@ -268,6 +268,22 @@ public class ShiroConfig {
         chain.addPathDefinition("/ui/cold-chain/returns",
                 "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_RETURN_VIEW + "]");
 
+        // —— V12 电子签收与离线回执（写路径在前、宽泛只读在后）——
+        // 主管裁决（签收冲突冻结后选定生效回执）
+        chain.addPathDefinition("/api/cold-chain/esign/receipts/adjudicate",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_ADJUDICATE + "]");
+        // 人工修正（只追加修正记录，不覆盖原始回执）
+        chain.addPathDefinition("/api/cold-chain/esign/receipts/corrections",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_CORRECT + "]");
+        // 离线回执批量同步 / 单回执上传（司机/收货方）
+        chain.addPathDefinition("/api/cold-chain/esign/sync",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_UPLOAD + "]");
+        chain.addPathDefinition("/api/cold-chain/esign/receipts",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_UPLOAD + "]");
+        // 回执/补偿台账只读
+        chain.addPathDefinition("/api/cold-chain/esign/**",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_VIEW + "]");
+
         // 冷链台账接口与管理页面使用 HTTP Basic，便于 curl/联调；浏览器会弹出登录框
         chain.addPathDefinition("/api/**", "authcBasic");
         chain.addPathDefinition("/ui/**", "authcBasic");

@@ -61,7 +61,11 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_CARRIER_NOTIFY_RETRY,
                 // V11：调度办理退货登记/入隔离/隔离区内移动，可查看退货台账
                 CcConstants.PERM_RETURN_HANDLE,
-                CcConstants.PERM_RETURN_VIEW)));
+                CcConstants.PERM_RETURN_VIEW,
+                // V12：调度可上传电子签收回执、查看台账、发起人工修正（只追加不覆盖）
+                CcConstants.PERM_ESIGN_UPLOAD,
+                CcConstants.PERM_ESIGN_VIEW,
+                CcConstants.PERM_ESIGN_CORRECT)));
         // 承运岗：温度超限/延误的处置岗位，可确认异常与提交处置结论；
         // V8：承运商并行提交报价
         put("carrier", 3L, "carrier123", "CARRIER", new LinkedHashSet<>(Arrays.asList(
@@ -74,7 +78,10 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_BATCH_LOAD,
                 CcConstants.PERM_RESCHEDULE_APPLY,
                 CcConstants.PERM_RESCHEDULE_TODO,
-                CcConstants.PERM_CARRIER_NOTIFY_RETRY)));
+                CcConstants.PERM_CARRIER_NOTIFY_RETRY,
+                // V12：司机离线保存签收草稿、恢复网络后上传签名/照片/定位
+                CcConstants.PERM_ESIGN_UPLOAD,
+                CcConstants.PERM_ESIGN_VIEW)));
         put("receiver", 4L, "receiver123", "RECEIVER",
                 new LinkedHashSet<>(Arrays.asList(
                         CcConstants.PERM_ALERT_VIEW,
@@ -88,7 +95,10 @@ public class ColdChainRealm extends AuthorizingRealm {
                         CcConstants.PERM_RESCHEDULE_TODO,
                         // V11：收货岗登记退货（收货拒签）/办理入隔离，可查看退货台账
                         CcConstants.PERM_RETURN_HANDLE,
-                        CcConstants.PERM_RETURN_VIEW)));
+                        CcConstants.PERM_RETURN_VIEW,
+                        // V12：收货方电子签收（在线签收/离线回执上传）
+                        CcConstants.PERM_ESIGN_UPLOAD,
+                        CcConstants.PERM_ESIGN_VIEW)));
         // 管理员：冷链温控预警查看/导出/闭环/扫描 + 类别模板维护 + V6 异常分级全套（不含 QA 复核角色）
         // V9：设备证书管理 + 隔离队列查看 + 重放
         put("admin", 5L, "admin123", "ADMIN", new LinkedHashSet<>(Arrays.asList(
@@ -109,6 +119,10 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_RETURN_VIEW,
                 CcConstants.PERM_RETURN_REVIEW,
                 CcConstants.PERM_RETURN_EXPORT,
+                // V12：主管裁决签收冲突（冻结批次选定生效回执）、人工修正、台账查看
+                CcConstants.PERM_ESIGN_VIEW,
+                CcConstants.PERM_ESIGN_CORRECT,
+                CcConstants.PERM_ESIGN_ADJUDICATE,
                 "*")));
         // V6 质量复核岗：唯一可按分级规则复核关闭异常的角色（可查看预警与异常详情）；
         // V8：人工改价必须经独立审批，由 QA 岗审批同意后才生效（申请在调度，职责分离）

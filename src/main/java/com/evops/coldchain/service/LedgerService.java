@@ -85,6 +85,8 @@ public class LedgerService {
     private com.evops.coldchain.service.BatchRescheduleService rescheduleService;
     @Resource
     private com.evops.coldchain.service.ReturnService returnService;
+    @Resource
+    private com.evops.coldchain.service.EsignService esignService;
 
     public Map<String, Object> batchLedger(Long batchId) {
         TransportBatch batch = batchMapper.selectById(batchId);
@@ -279,6 +281,10 @@ public class LedgerService {
             returnList.add(rm);
         }
         ledger.put("returns", returnList);
+
+        // V12 电子签收与离线回执：全部回执（含照片/修正记录）+ 成对补偿 + 冻结状态；
+        // 签收时间以设备时间/服务器时间并列展示，人工修正只追加不覆盖原始回执
+        ledger.put("esign", esignService.batchEsignInfo(batchId));
 
         ledger.put("opLogs", opLogs);
         return ledger;
