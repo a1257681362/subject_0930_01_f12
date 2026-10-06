@@ -268,6 +268,31 @@ public class ShiroConfig {
         chain.addPathDefinition("/ui/cold-chain/returns",
                 "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_RETURN_VIEW + "]");
 
+        // —— V12 电子签收（写路径在前、宽泛只读在后）——
+        // 主管裁决（ADMIN；服务内再做角色校验）
+        chain.addPathDefinition("/api/cold-chain/esign/adjudications/decide",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_ADJUDICATE + "]");
+        chain.addPathDefinition("/api/cold-chain/esign/adjudications/pending",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_VIEW + "]");
+        // 人工修正（只追加不覆盖原始回执）
+        chain.addPathDefinition("/api/cold-chain/esign/corrections",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_CORRECT + "]");
+        // 部分成功补偿对应登记/确认
+        chain.addPathDefinition("/api/cold-chain/esign/compensations/match",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_COMPENSATE + "]");
+        chain.addPathDefinition("/api/cold-chain/esign/compensations/confirm",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_COMPENSATE + "]");
+        // 回执上传/补传/采信闭环（司机/承运/收货）
+        chain.addPathDefinition("/api/cold-chain/esign/receipts",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_SUBMIT + "]");
+        chain.addPathDefinition("/api/cold-chain/esign/receipts/media",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_SUBMIT + "]");
+        chain.addPathDefinition("/api/cold-chain/esign/receipts/*/accept",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_SUBMIT + "]");
+        // 电子签收其余只读/操作路径统一要求查看权限（具体写路径已在上方先行匹配）
+        chain.addPathDefinition("/api/cold-chain/esign/**",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_ESIGN_VIEW + "]");
+
         // 冷链台账接口与管理页面使用 HTTP Basic，便于 curl/联调；浏览器会弹出登录框
         chain.addPathDefinition("/api/**", "authcBasic");
         chain.addPathDefinition("/ui/**", "authcBasic");

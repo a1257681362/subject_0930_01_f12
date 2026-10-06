@@ -1036,3 +1036,115 @@ curl -u qa:qa123 -OJ http://localhost:8080/api/cold-chain/returns/1/evidence
 运输对象置为无效（撤回）后页面 HTML、列表 CSV 导出、后台 JSON 三者同口径（退货快照不变、
 原批次状态一致展示已作废、退货流程照常推进、台账含退货只读关联块）；以及 401/403/200
 权限校验。全套 57 个用例通过。
+
+## 冷链运输 V12：电子签收（离线草稿 / 双钟点 / 冲突冻结主管裁决 / 补偿对应）
+
+### 核心规则
+
+1. **离线草稿 + 按回执编号合并**：司机在客户现场以设备采集签名图像、现场照片、定位与
+   设备时间；离线时签收草稿保存在司机设备，恢复网络后用**离线前生成的同一回执编号**
+   （`receiptNo`，建议 UUID）上传。服务端按回执编号合并：
+   - 同编号**同内容**重复上传：只并入新增证据、累加 `duplicateCount`，不产生第二份回执；
+   - 同编号**不同内容**（签收时间/数量/签收人等任一变化）：一律拒绝，不能借重复上传
+     覆盖原始回执或制造第二份事实；
+   - 不同编号但签收内容（签收人/机构/批准文号/包装规格/实收数量）完全一致：后者置
+     `MERGED` 并入正本；**不同内容**：两份回执置 `CONFLICT`、批次置 `SIGN_FROZEN`
+     （保存冻结前状态）并生成主管裁决单，冻结期间不能签收/结算/撤回。
+2. **设备时间与服务器时间并列**：`deviceSignTime`（设备钟，现场签收时刻，离线照记）、
+   `deviceUploadTime`（设备发起上传时刻）与 `serverReceiveTime`/`acceptedTime`（服务器钟）
+   各自独立落库，回执详情与批次台账并列展示，并给出设备-服务器时差；任何一方都不被
+   另一方或人工修正覆盖。
+3. **主管裁决**：主管（ADMIN）对冲突裁决 `FIRST`/`SECOND` 采信其一——满足闭环条件即
+   解冻并闭环，未采信回执置 `SUPERSEDED` 原样保留；采信但暂不满足闭环条件（证据不全/
+   异常未关闭等）则批次解冻待补齐；`INVALID_BOTH` 两份均无效，解冻恢复冻结前状态后可
+   重新签收。裁决只追加一次，不可重复裁决。
+4. **人工修正不覆盖原始回执**：修正只能在修正表追加“字段/原值快照/修正值/原因”，
+   查询时原值与修正并列；关键签收事实（签收人/数量/批准文号/包装规格/设备签收时间/
+   定位/证据）禁止修正，只能新增回执或走冲突裁决。
+5. **证据三类齐备才闭环**：闭环前必须集齐签名（SIGNATURE）、照片（PHOTO）、定位
+   （LOCATION）；证据只追加、按摘要去重，恢复网络后可补传。
+6. **冷链部分成功补偿一一对应**：成功部分走电子签收（`PARTIAL`），短少/异常部分由
+   来源 `OFFLINE` 的离线回执承载；补偿记录（`t_cc_esign_compensation`）把两份回执
+   一一对应、**双向回填**，且数量平衡（签收数 + 短少数 = 发运数）。补偿对应
+   `MATCHED -> CONFIRM` 确认后电子签收方可闭环，闭环时离线回执一并采信，双方可双向反查。
+7. **闭环后到达的回执**：忠实落库为 `AFTER_CLOSED`，原样保留、不予采信、不覆盖既有闭环。
+8. 纸质/在线核对签收（`/batches/sign`）与在途电子回执合流：内容一致随闭环一并采信；
+   内容不一致则当场签收也登记为电子回执并冻结批次（独立事务落库，不随外层签收回滚）。
+
+### 表结构增量（详见 schema.sql，版本标记 `cold-chain-12`）
+
+- `t_cc_esign_receipt`：电子签收回执（内容列不可变；状态/裁决/补偿锚点列沿状态机推进，
+  双钟点、来源 ONLINE/OFFLINE、FULL/PARTIAL、摘要、重复次数）；
+- `t_cc_esign_media`：签名/照片/定位媒体证据（只追加，设备采集时间与服务端接收时间并列）；
+- `t_cc_esign_adjudication`：冲突主管裁决单（差异点快照冻结，裁决只追加一次）；
+- `t_cc_esign_correction`：人工修正（只追加，原值快照 + 修正值并列）；
+- `t_cc_esign_compensation`：部分成功电子签收 ↔ 离线回执一一对应（双向回填、数量平衡）；
+- `t_cc_transport_batch` 增列：`pre_freeze_status/sign_frozen/sign_freeze_time/
+  sign_freeze_reason/active_adjudication_id/esign_receipt_id/esign_device_sign_time/
+  esign_server_sign_time`。
+
+### 接口增量（仍在 `/api/cold-chain` 下，HTTP Basic）
+
+```bash
+# 司机离线现场签收，恢复网络后上传（签名/照片/定位随回执；source=OFFLINE）
+curl -u carrier:carrier123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/esign/receipts -d '{
+    "receiptNo":"7f3c9a1e-离线前生成", "batchId":1, "deviceSerial":"HANDHELD-01",
+    "driverName":"王司机", "signBy":"市一院药库张主任",
+    "receivedApprovalNo":"国药准字H...", "receivedPackageSpec":"1支/盒",
+    "confirmQty":20, "source":"OFFLINE",
+    "deviceSignTime":"2026-10-05T09:12:00", "deviceUploadTime":"2026-10-05T11:40:00",
+    "media":[
+      {"mediaType":"SIGNATURE","fileName":"sig.png","sha256":"...","deviceCaptureTime":"2026-10-05T09:12:00"},
+      {"mediaType":"PHOTO","fileName":"box.jpg","sha256":"...","deviceCaptureTime":"2026-10-05T09:12:10"},
+      {"mediaType":"LOCATION","latitude":30.2741,"longitude":120.1551,"accuracyMeters":12.5,
+       "addrText":"市一院药库","sha256":"...","deviceCaptureTime":"2026-10-05T09:12:00"}]}'
+
+# 恢复网络后单独补传证据（只追加、去重）
+curl -u carrier:carrier123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/esign/receipts/media -d \
+  '{"receiptNo":"7f3c9a1e-离线前生成","media":[{"mediaType":"PHOTO","fileName":"p2.jpg","sha256":"...","deviceCaptureTime":"2026-10-05T09:12:20"}]}'
+
+# 采信电子回执闭环（闭环前再次比对：同内容并入/不同内容冻结）
+curl -u carrier:carrier123 -X POST \
+  http://localhost:8080/api/cold-chain/esign/receipts/7f3c9a1e-离线前生成/accept
+
+# 部分成功：成功电子签收(PARTIAL) ↔ 短少离线回执(OFFLINE) 一一对应 + 确认
+curl -u dispatcher:dispatcher123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/esign/compensations/match -d \
+  '{"esignReceiptNo":"PART-OK","offlineReceiptNo":"PART-SHORT",
+    "reasonType":"TEMP_EXCURSION","reasonDetail":"8 件成功签收，2 件温度超限拒收，8+2=10"}'
+curl -u dispatcher:dispatcher123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/esign/compensations/confirm -d \
+  '{"compensationId":1,"confirmNote":"核实数量平衡，对应成立"}'
+
+# 人工修正非关键信息（原始回执不覆盖；关键事实字段返回停点）
+curl -u dispatcher:dispatcher123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/esign/corrections -d \
+  '{"receiptNo":"7f3c9a1e-离线前生成","fieldName":"signOrg",
+    "correctedValue":"市一院药剂科","reason":"补正科室名称"}'
+
+# 主管（ADMIN）裁决两份不同签收
+curl -u admin:admin123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/esign/adjudications/decide -d \
+  '{"adjudicationId":1,"decision":"FIRST","decisionNote":"核验现场记录，采信在先签收"}'
+# 只读：回执详情 / 批次回执 / 待裁决列表
+curl -u admin:admin123 http://localhost:8080/api/cold-chain/esign/adjudications/pending
+```
+
+权限点：`coldchain:esign:submit`（carrier/receiver 上传/补传/采信）、
+`coldchain:esign:correct`（dispatcher/admin 修正）、
+`coldchain:esign:compensate`（dispatcher/admin 补偿对应）、
+`coldchain:esign:adjudicate`（仅 admin 主管裁决）、`coldchain:esign:view`（台账查看）。
+
+### V12 验收
+
+`ElectronicSignoffIntegrationTest`（8 个用例，内存 H2 + 真实 Shiro HTTP Basic）覆盖：
+离线草稿恢复上传按回执编号合并闭环、设备时间与服务器时间并列（含时差）、同编号同内容
+幂等并入与同编号不同内容拒绝；同批两份不同签收双方置 CONFLICT、批次冻结（保存冻结前
+状态）、冻结期间电子/纸质签收与撤回全部拦截、非主管裁决 403、主管采信其一即闭环且另一份
+SUPERSEDED 原样保留，以及双废解冻恢复原状态后重新签收；人工修正只追加不覆盖原始回执、
+关键签收事实（数量/设备时间等）禁修；部分成功电子签收与短少离线回执补偿一一对应、双向
+回填、数量平衡、确认前禁止闭环、确认后闭环双方均采信，不平衡配对被拒；闭环后到达回执
+落库 AFTER_CLOSED 不采信不覆盖、证据三类不齐禁止闭环、无权限账号 403。
+全套 65 个用例通过。

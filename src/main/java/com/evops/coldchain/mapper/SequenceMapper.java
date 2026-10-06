@@ -57,4 +57,10 @@ public interface SequenceMapper {
 
     @Select("SELECT NEXT VALUE FOR seq_cc_return_no")
     Long nextReturnNo();
+
+    @Select("SELECT NEXT VALUE FOR seq_cc_adjudication_no")
+    Long nextAdjudicationNo();
+
+    @Select("SELECT NEXT VALUE FOR seq_cc_compensation_no")
+    Long nextCompensationNo();
 }

@@ -519,4 +519,83 @@ public final class CcConstants {
     public static final String PERM_RETURN_VIEW = "coldchain:return:view";
     /** 退货台账与证据链导出 */
     public static final String PERM_RETURN_EXPORT = "coldchain:return:export";
+
+    // —— V12 电子签收（离线草稿、合并上传、双钟点、冲突冻结主管裁决、补偿对应）——
+    /** 回执来源：ONLINE 在线当场 / OFFLINE 离线草稿恢复上传（含纸质离线回执补录） */
+    public static final String ESIGN_SOURCE_ONLINE = "ONLINE";
+    public static final String ESIGN_SOURCE_OFFLINE = "OFFLINE";
+    /** 签收结果：FULL 全部成功 / PARTIAL 部分成功（短少部分须离线回执补偿对应） */
+    public static final String ESIGN_FULL = "FULL";
+    public static final String ESIGN_PARTIAL = "PARTIAL";
+    /**
+     * 回执状态：
+     * UPLOADED 已上传待闭环 / ACCEPTED 已采信闭环 / MERGED 与既有回执同内容并入 /
+     * CONFLICT 与同批另一份签收冲突（批次冻结）/ SUPERSEDED 裁决未采信 /
+     * AFTER_CLOSED 闭环后到达、未采信
+     */
+    public static final String RECEIPT_UPLOADED = "UPLOADED";
+    public static final String RECEIPT_ACCEPTED = "ACCEPTED";
+    public static final String RECEIPT_MERGED = "MERGED";
+    public static final String RECEIPT_CONFLICT = "CONFLICT";
+    public static final String RECEIPT_SUPERSEDED = "SUPERSEDED";
+    public static final String RECEIPT_AFTER_CLOSED = "AFTER_CLOSED";
+    /** 媒体类型：签名 / 照片 / 定位 */
+    public static final String MEDIA_SIGNATURE = "SIGNATURE";
+    public static final String MEDIA_PHOTO = "PHOTO";
+    public static final String MEDIA_LOCATION = "LOCATION";
+    /** 裁决单状态：PENDING 待主管裁决 / RESOLVED 已裁决 */
+    public static final String ADJ_PENDING = "PENDING";
+    public static final String ADJ_RESOLVED = "RESOLVED";
+    /** 裁决结论：采信在先 / 采信在后 / 两份均无效（可重新签收） */
+    public static final String ADJ_FIRST = "FIRST";
+    public static final String ADJ_SECOND = "SECOND";
+    public static final String ADJ_INVALID_BOTH = "INVALID_BOTH";
+    /** 补偿对应状态：MATCHED 一一对应 / CONFIRMED 对应已确认（可闭环） */
+    public static final String COMP_MATCHED = "MATCHED";
+    public static final String COMP_CONFIRMED = "CONFIRMED";
+    /** 部分成功补偿原因 */
+    public static final String COMP_REASON_TEMP = "TEMP_EXCURSION";
+    public static final String COMP_REASON_DAMAGE = "PACKAGE_DAMAGE";
+    public static final String COMP_REASON_REJECTION_PART = "REJECTION_PART";
+    public static final String COMP_REASON_OTHER = "OTHER";
+
+    // V12 操作日志实体类型
+    public static final String ENT_ESIGN_RECEIPT = "ESIGN_RECEIPT";
+    public static final String ENT_ESIGN_MEDIA = "ESIGN_MEDIA";
+    public static final String ENT_ESIGN_ADJUDICATION = "ESIGN_ADJUDICATION";
+    public static final String ENT_ESIGN_CORRECTION = "ESIGN_CORRECTION";
+    public static final String ENT_ESIGN_COMPENSATION = "ESIGN_COMPENSATION";
+
+    // V12 操作动作
+    /** 离线签收草稿（设备侧事实，上传时补登记） */
+    public static final String ACT_ESIGN_DRAFT = "ESIGN_DRAFT";
+    /** 回执上传（在线当场 / 离线恢复） */
+    public static final String ACT_ESIGN_UPLOAD = "ESIGN_UPLOAD";
+    /** 媒体证据（签名/照片/定位）上传 */
+    public static final String ACT_ESIGN_MEDIA = "ESIGN_MEDIA";
+    /** 同编号同内容重复上传并入 */
+    public static final String ACT_ESIGN_MERGE = "ESIGN_MERGE";
+    /** 两份不同签收触发冻结 */
+    public static final String ACT_ESIGN_FREEZE = "ESIGN_FREEZE";
+    /** 主管裁决 */
+    public static final String ACT_ESIGN_ADJUDICATE = "ESIGN_ADJUDICATE";
+    /** 采信回执闭环 */
+    public static final String ACT_ESIGN_ACCEPT = "ESIGN_ACCEPT";
+    /** 人工修正（只追加不覆盖） */
+    public static final String ACT_ESIGN_CORRECT = "ESIGN_CORRECT";
+    /** 部分成功补偿对应登记/确认 */
+    public static final String ACT_ESIGN_COMP_MATCH = "ESIGN_COMP_MATCH";
+    public static final String ACT_ESIGN_COMP_CONFIRM = "ESIGN_COMP_CONFIRM";
+
+    // —— V12 Shiro 权限点 ——
+    /** 司机/承运：电子签收草稿登记与恢复上传 */
+    public static final String PERM_ESIGN_SUBMIT = "coldchain:esign:submit";
+    /** 电子签收回执/证据/裁决台账查看 */
+    public static final String PERM_ESIGN_VIEW = "coldchain:esign:view";
+    /** 人工修正非关键信息（原始回执不可覆盖） */
+    public static final String PERM_ESIGN_CORRECT = "coldchain:esign:correct";
+    /** 部分成功补偿对应确认 */
+    public static final String PERM_ESIGN_COMPENSATE = "coldchain:esign:compensate";
+    /** 签收冲突主管裁决（主管=管理员） */
+    public static final String PERM_ESIGN_ADJUDICATE = "coldchain:esign:adjudicate";
 }

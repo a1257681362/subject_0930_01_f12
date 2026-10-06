@@ -208,4 +208,36 @@ public class TransportBatch extends BaseEntity {
     public void setWindowRuleVersionNo(Integer windowRuleVersionNo) { this.windowRuleVersionNo = windowRuleVersionNo; }
     public String getWindowHolidayIdsSnap() { return windowHolidayIdsSnap; }
     public void setWindowHolidayIdsSnap(String windowHolidayIdsSnap) { this.windowHolidayIdsSnap = windowHolidayIdsSnap; }
+
+    // —— V12 电子签收：签收冻结 + 采信回执锚点 + 双钟点 ——
+    /** 冻结前状态（解冻后恢复，不丢失在途/异常挂起原状态） */
+    private String preFreezeStatus;
+    /** 是否因两份不同签收被冻结 */
+    private Boolean signFrozen;
+    private LocalDateTime signFreezeTime;
+    private String signFreezeReason;
+    private Long activeAdjudicationId;
+    /** 采信闭环的电子回执 */
+    private Long esignReceiptId;
+    /** 设备签收时间（取被采信回执，设备钟） */
+    private LocalDateTime esignDeviceSignTime;
+    /** 服务端闭环时间（服务器钟）；与设备时间并列 */
+    private LocalDateTime esignServerSignTime;
+
+    public String getPreFreezeStatus() { return preFreezeStatus; }
+    public void setPreFreezeStatus(String preFreezeStatus) { this.preFreezeStatus = preFreezeStatus; }
+    public Boolean getSignFrozen() { return signFrozen; }
+    public void setSignFrozen(Boolean signFrozen) { this.signFrozen = signFrozen; }
+    public LocalDateTime getSignFreezeTime() { return signFreezeTime; }
+    public void setSignFreezeTime(LocalDateTime signFreezeTime) { this.signFreezeTime = signFreezeTime; }
+    public String getSignFreezeReason() { return signFreezeReason; }
+    public void setSignFreezeReason(String signFreezeReason) { this.signFreezeReason = signFreezeReason; }
+    public Long getActiveAdjudicationId() { return activeAdjudicationId; }
+    public void setActiveAdjudicationId(Long activeAdjudicationId) { this.activeAdjudicationId = activeAdjudicationId; }
+    public Long getEsignReceiptId() { return esignReceiptId; }
+    public void setEsignReceiptId(Long esignReceiptId) { this.esignReceiptId = esignReceiptId; }
+    public LocalDateTime getEsignDeviceSignTime() { return esignDeviceSignTime; }
+    public void setEsignDeviceSignTime(LocalDateTime esignDeviceSignTime) { this.esignDeviceSignTime = esignDeviceSignTime; }
+    public LocalDateTime getEsignServerSignTime() { return esignServerSignTime; }
+    public void setEsignServerSignTime(LocalDateTime esignServerSignTime) { this.esignServerSignTime = esignServerSignTime; }
 }

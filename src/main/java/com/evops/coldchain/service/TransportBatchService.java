@@ -91,6 +91,8 @@ public class TransportBatchService {
     private DeliveryWindowService deliveryWindowService;
     @Resource
     private BatchRescheduleService batchRescheduleService;
+    @Resource
+    private EsignService esignService;
 
     /** 派车：生成稳定批次号，固化档案快照，关联发货单与车辆 */
     @Transactional
@@ -542,6 +544,11 @@ public class TransportBatchService {
                 || CcConstants.BATCH_LOADING.equals(batch.getStatus())) {
             throw new BusinessException("批次尚未发运在途，不能登记收货拒签");
         }
+        if (Boolean.TRUE.equals(batch.getSignFrozen())) {
+            throw new BusinessException(String.format(
+                    "批次 %s 因两份不同签收已冻结（裁决单#%d），冻结期间不能登记收货拒签，须先由主管裁决",
+                    batch.getBatchNo(), batch.getActiveAdjudicationId()));
+        }
         LocalDateTime now = LocalDateTime.now();
         String desc = String.format("收货方 %s 拒签：%s", req.getRejectBy(), req.getReason());
         ExceptionEvent event = exceptionLifecycleService.registerAutoConfirmed(
@@ -595,6 +602,12 @@ public class TransportBatchService {
 
         // 冷链药品运输权限被收紧时，交接/继续派送停止推进（已确认的封签核验事实保留）
         permissionService.requirePermitted(CcConstants.PERM_COLD_CHAIN_HANDOVER);
+        // V12：两份不同电子签收触发的冻结必须先由主管裁决，纸质/当场签收同样被卡口拦截
+        if (Boolean.TRUE.equals(batch.getSignFrozen())) {
+            throw new BusinessException(String.format(
+                    "批次 %s 因同一批次出现两份不同签收已冻结（裁决单#%d），须主管裁决后才能签收",
+                    batch.getBatchNo(), batch.getActiveAdjudicationId()));
+        }
         // V10：装车后改期单停留待审批（PENDING）时，送达时刻未定，不得签收闭环
         batchRescheduleService.requireNoPending(batch.getId());
         // 已进入分仓交接流程的批次：全部箱子封签核验完成、箱数平衡后方可继续派送/签收；
@@ -624,11 +637,18 @@ public class TransportBatchService {
                     + " 条未关闭异常（待确认/处置中/待复核），暂不能签收闭环；请完成处置结论、引用证据并经指定岗位复核关闭");
         }
 
+        // V12：与在途电子回执合流——内容一致的电子回执随本次闭环一并采信；
+        // 内容不一致则本次签收被登记为当场回执并冻结批次（独立事务落库），本方法抛出停点。
+        Long convergedEsignId = esignService.resolveManualSign(batch, req.getSignBy(),
+                req.getReceivedApprovalNo(), req.getReceivedPackageSpec(), req.getConfirmQty(),
+                req.getSignRemark());
+
         // 核对通过，闭环
+        LocalDateTime serverNow = LocalDateTime.now();
         batch.setStatus(CcConstants.BATCH_SIGNED);
         batch.setSignBy(req.getSignBy());
         batch.setSignRemark(req.getSignRemark());
-        batch.setSignTime(LocalDateTime.now());
+        batch.setSignTime(serverNow);
         batchMapper.updateById(batch);
 
         ShipmentOrder order = orderService.requireOrder(batch.getOrderId());
@@ -638,14 +658,20 @@ public class TransportBatchService {
         // V5：批次闭环，关闭活动连续超限计时段（温度/已产生预警事实保留）
         alertEvaluationService.closeStreaks(batch.getId());
 
+        // V12：电子回执与当场签收内容一致时合流采信（回填双钟点，电子原始回执不被覆盖）
+        if (convergedEsignId != null) {
+            esignService.convergeAfterManualClose(convergedEsignId, batch, serverNow);
+        }
+
         opLogService.log(CcConstants.ENT_BATCH, batch.getId(), batch.getId(), CcConstants.ACT_SIGN,
-                String.format("批次 %s 由 %s 签收闭环：按原档案 V%d 快照核对一致（批准文号=%s，包装=%s，数量=%d）%s；闭环时责任主体=%s/%s%s",
+                String.format("批次 %s 由 %s 签收闭环：按原档案 V%d 快照核对一致（批准文号=%s，包装=%s，数量=%d）%s；闭环时责任主体=%s/%s%s%s",
                         batch.getBatchNo(), req.getSignBy(), batch.getDrugVersionNo(),
                         batch.getApprovalNoSnap(), batch.getPackageSpecSnap(), batch.getShipQty(),
                         Boolean.TRUE.equals(batch.getHasTempExcursion()) ? "；途中曾越限（异常均已处理）" : "",
                         batch.getResponsibleOrg() == null ? "原承运方" : batch.getResponsibleOrg(),
                         batch.getResponsibleParty() == null ? "" : batch.getResponsibleParty(),
-                        batch.getArrivedBoxQty() == null ? "" : "；分仓交接全部封签核验通过、箱数平衡"));
+                        batch.getArrivedBoxQty() == null ? "" : "；分仓交接全部封签核验通过、箱数平衡",
+                        convergedEsignId == null ? "" : "；在途电子回执内容一致已合流采信（设备时间与服务器时间并列留痕）"));
         return batch;
     }
 
@@ -661,6 +687,12 @@ public class TransportBatchService {
         }
         if (CcConstants.BATCH_REVOKED.equals(batch.getStatus())) {
             throw new BusinessException("批次已撤回，不能重复撤回");
+        }
+        // V12：两份不同签收冻结期间不得撤回（冻结只能由主管裁决解除）
+        if (Boolean.TRUE.equals(batch.getSignFrozen())) {
+            throw new BusinessException(String.format(
+                    "批次 %s 因两份不同签收已冻结（裁决单#%d），冻结期间不能撤回，须先由主管裁决",
+                    batch.getBatchNo(), batch.getActiveAdjudicationId()));
         }
         // V10：装车后改期单停留待审批时先完成审批，不允许带着 PENDING 改期单撤回
         batchRescheduleService.requireNoPending(batch.getId());
